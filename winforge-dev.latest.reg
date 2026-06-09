@@ -1,0 +1,24 @@
+Windows Registry Editor Version 5.00
+
+
+[-HKEY_CURRENT_USER\Software\Classes\*\shell\WinForge]
+
+[-HKEY_CURRENT_USER\Software\Classes\*\ContextMenus\WinForge]
+
+[HKEY_CURRENT_USER\Software\Classes\*\shell\WinForge]
+"MUIVerb"="WinForge"
+"Icon"="D:\\Dev\\workspace\\WinForge\\src-tauri\\target\\debug\\winforge.exe"
+"ExtendedSubCommandsKey"="*\\ContextMenus\\WinForge"
+
+[HKEY_CURRENT_USER\Software\Classes\*\ContextMenus\WinForge\shell\ImagePngToJpeg]
+"MUIVerb"="Image - PNG to JPEG"
+
+
+[HKEY_CURRENT_USER\Software\Classes\*\ContextMenus\WinForge\shell\ImagePngToJpeg\command]
+@="\"D:\\Dev\\workspace\\WinForge\\src-tauri\\target\\debug\\winforge.exe\" imagePngToJpeg \"%1\""
+
+[HKEY_CURRENT_USER\Software\Classes\*\ContextMenus\WinForge\shell\Action2]
+"MUIVerb"="Action 2"
+
+[HKEY_CURRENT_USER\Software\Classes\*\ContextMenus\WinForge\shell\Action2\command]
+@="\"D:\\Dev\\workspace\\WinForge\\src-tauri\\target\\debug\\winforge.exe\" action2 \"%1\""
