@@ -32,6 +32,7 @@ pub fn run() {
             // TODO block another instance and send args 
             println!("nouvelle instance bloquée, args: {:?}", args);
         }))
+        .invoke_handler(tauri::generate_handler![greet])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
