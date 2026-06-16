@@ -21,21 +21,45 @@ fn main() {
 
     let mut threads = Vec::new();
 
+    // consumer
     for i in 0..5 {
         let s = Arc::clone(&shared);
         let th = thread::spawn( move || {
-            s.queue.lock().unwrap().push_front(i);
-            println!("Thread - {:?}", i);
-            return i;
+
+        loop {
+            let mut queue_guard = s.queue.lock().unwrap();
+            if queue_guard.is_empty() {
+                return;
+            }
+
+            let val = queue_guard.pop_front();
+            println!("Thread processing value: {:?}", val);
+            queue_guard = s.condvar.wait(queue_guard).unwrap();
+        }
+            
         });
+        
         threads.push(th);
     }
+
+
+    // producer
+    let mut queue_guard = shared.queue.lock().unwrap();
+    queue_guard.push_front(1);
+    queue_guard.push_front(2);
+    queue_guard.push_front(3);
+    queue_guard.push_front(22);
+    drop(queue_guard);
+    shared.condvar.notify_one();
 
 
     for th in threads {
         let res = th.join();
         println!("Result : {:?} ", res);
     }
+
+
+
 }
 
 
