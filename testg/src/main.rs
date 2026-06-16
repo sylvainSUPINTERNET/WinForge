@@ -28,13 +28,15 @@ fn main() {
 
         loop {
             let mut queue_guard = s.queue.lock().unwrap();
-            if queue_guard.is_empty() {
-                return;
+            while queue_guard.is_empty() {
+                queue_guard = s.condvar.wait(queue_guard).unwrap();
             }
+            
 
             let val = queue_guard.pop_front();
-            println!("Thread processing value: {:?}", val);
-            queue_guard = s.condvar.wait(queue_guard).unwrap();
+            drop(queue_guard);
+
+            println!("Thread {:?} processing value: {:?}", i, val);
         }
             
         });
@@ -50,7 +52,13 @@ fn main() {
     queue_guard.push_front(3);
     queue_guard.push_front(22);
     drop(queue_guard);
-    shared.condvar.notify_one();
+    shared.condvar.notify_one();    
+
+    let mut queue_guard2 = shared.queue.lock().unwrap();
+    queue_guard2.push_front(15);
+    queue_guard2.push_front(285);
+    drop(queue_guard2);
+    shared.condvar.notify_one();   
 
 
     for th in threads {
