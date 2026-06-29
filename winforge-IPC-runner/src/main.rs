@@ -7,22 +7,34 @@ use tokio::{
 use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
 use std::env;
 use tracing::{debug};
+use image::ImageFormat;
+use std::path::Path;
 
 const PIPE_NAME: &str = r"\\.\pipe\winforge";
 
-fn test(args: Vec<String>) {
-    debug!("Args: {:?}", args);
 
-    let cmdName = &args[1];
-    let cmdParamStr = &args[2];
+fn verify_command(args: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+    let cmd_name = &args[1];
+    let cmd_param = &args[2];
 
-    match cmdName.as_str() {
+    match cmd_name.as_str() {
         "imagePngToJpeg" => {
-            debug!("Cmd : {:?}", cmdName);
-        },
-        _ => {
-            debug!("Unknown command: {:?}", cmdName);
+            let path = Path::new(cmd_param);
+
+            match image::ImageFormat::from_path(path) {
+                Ok(ImageFormat::Png) => Ok(()),
+                Ok(_) => {
+                    debug!("File is not a PNG: {:?}", cmd_param);
+                    return Err("File is not a PNG".into());
+                },
+                Err(e) => {
+                    debug!("Error determining image format: {:?}", e);
+                    return Err(e.into());
+                },
+            }
         }
+
+        _ => Err("Unknown command".into()),
     }
 }
 
@@ -39,7 +51,16 @@ async fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
-    test(args);
+    let result = match verify_command(&args) {
+        Ok(r) => r,
+        Err(e) => {
+            debug!("Command verification failed: {}", e);
+            return Ok(());
+        }
+    };
+
+    debug!("Command verified successfully: {:?}", args);
+    
 
     // let mut client = loop {
     //     match ClientOptions::new().open(PIPE_NAME) {
