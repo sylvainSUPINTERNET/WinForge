@@ -1,17 +1,11 @@
 mod menu;
 mod services;
 
-use std::any::type_name;
-use tracing::{info, debug};
-
-fn print_type_of<T>(_: &T) {
-    println!("{}", type_name::<T>());
-}
+use tracing::info;
 
 // mod services;
 
 // use crate::services::image_converter;
-
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -35,12 +29,15 @@ fn greet(name: &str) -> String {
 
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+        .setup(|_app| {
+            services::ipc_server::start();
+            Ok(())
+        })
+        .plugin(tauri_plugin_single_instance::init(|_app, args, _cwd| {
             // When you select multiple element on explorer, will block the windows and just send infos here
-            // so each "info" ( event ) = 1 individual action 
+            // so each "info" ( event ) = 1 individual action
 
             info!("new instance blocked, args: {:?}", args);
-            // print_type_of(&args);
 
             for (index, arg) in args.iter().enumerate() {
                 match index {
@@ -50,14 +47,11 @@ pub fn run() {
                     2 => {
                         info!(" > File : {:?}", arg);
                     }
-                    _ => {
-
-                    }
+                    _ => {}
                 }
             }
 
             info!("==============================================");
-
         }))
         .invoke_handler(tauri::generate_handler![greet])
         .run(tauri::generate_context!())

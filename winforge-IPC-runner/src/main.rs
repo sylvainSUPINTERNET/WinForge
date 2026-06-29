@@ -13,6 +13,10 @@ use std::path::Path;
 const PIPE_NAME: &str = r"\\.\pipe\winforge";
 
 
+// server : 
+// https://chatgpt.com/c/6a42f15a-ceb0-83ed-b7ec-ae852cc42a4d
+
+
 fn verify_command(args: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let cmd_name = &args[1];
     let cmd_param = &args[2];
@@ -58,28 +62,30 @@ async fn main() -> std::io::Result<()> {
             return Ok(());
         }
     };
-
     debug!("Command verified successfully: {:?}", args);
-    
 
-    // let mut client = loop {
-    //     match ClientOptions::new().open(PIPE_NAME) {
-    //         Ok(pipe) => break pipe,
 
-    //         Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY as i32) => {
-    //             sleep(Duration::from_millis(100)).await;
-    //         }
+    let mut client = loop {
+        match ClientOptions::new().open(PIPE_NAME) {
+            Ok(pipe) => {
+                debug!("Connected to named pipe: {}", PIPE_NAME);
+                break pipe;
+            },
 
-    //         Err(e) => return Err(e),
-    //     }
-    // };
+            Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY as i32) => {
+                sleep(Duration::from_millis(100)).await;
+            }
 
-    // client.write_all(b"ping").await?;
+            Err(e) => return Err(e),
+        }
+    };
 
-    // let mut response = Vec::new();
-    // client.read_to_end(&mut response).await?;
+    client.write_all(b"ping").await?;
 
-    // println!("{}", String::from_utf8_lossy(&response));
+    let mut response = Vec::new();
+    client.read_to_end(&mut response).await?;
+
+    println!("{}", String::from_utf8_lossy(&response));
 
     Ok(())
 }
