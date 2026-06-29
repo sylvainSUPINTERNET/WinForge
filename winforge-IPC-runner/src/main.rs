@@ -12,11 +12,6 @@ use std::path::Path;
 
 const PIPE_NAME: &str = r"\\.\pipe\winforge";
 
-
-// server : 
-// https://chatgpt.com/c/6a42f15a-ceb0-83ed-b7ec-ae852cc42a4d
-
-
 fn verify_command(args: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let cmd_name = &args[1];
     let cmd_param = &args[2];
