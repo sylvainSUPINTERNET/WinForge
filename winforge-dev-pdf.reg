@@ -1,0 +1,13 @@
+[-HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\shell\WinForge]
+[-HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\ContextMenus\WinForge]
+
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\shell\WinForge]
+"MUIVerb"="WinForge"
+"Icon"="D:\\Dev\\workspace\\WinForge\\src-tauri\\target\\debug\\winforge.exe"
+"ExtendedSubCommandsKey"="SystemFileAssociations\\.pdf\\ContextMenus\\WinForge"
+
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\ContextMenus\WinForge\shell\PdfToDocx]
+"MUIVerb"="PDF -> DOCX"
+
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\ContextMenus\WinForge\shell\PdfToDocx\command]
+@="\"D:\\Dev\\workspace\\WinForge\\winforge-IPC-runner\\target\\debug\\winforge-IPC-runner.exe\" pdfToDocx \"%1\""

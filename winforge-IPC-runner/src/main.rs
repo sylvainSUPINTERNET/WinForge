@@ -10,6 +10,16 @@ use tracing::{debug, field::debug};
 use image::ImageFormat;
 use std::path::Path;
 
+use windows::{
+    core::w,
+    Win32::UI::WindowsAndMessaging::{
+        MessageBoxW,
+        MB_ICONERROR,
+        MB_ICONINFORMATION,
+        MB_OK,
+    },
+};
+
 const PIPE_NAME: &str = r"\\.\pipe\winforge";
 
 fn verify_command(args: &Vec<String>) -> Result<String, Box<dyn std::error::Error>> {
@@ -24,10 +34,24 @@ fn verify_command(args: &Vec<String>) -> Result<String, Box<dyn std::error::Erro
                 Ok(ImageFormat::Png) => Ok(cmd_name.to_string()),
                 Ok(_) => {
                     debug!("File is not a PNG: {:?}", cmd_param);
+                        unsafe {
+                            MessageBoxW(
+                            None,
+                            w!("This file is not a PNG."),
+                            w!("WinForge"),
+                            MB_OK | MB_ICONERROR);
+                        }
                     return Err("File is not a PNG".into());
                 },
                 Err(e) => {
                     debug!("Error determining image format: {:?}", e);
+                        unsafe {
+                            MessageBoxW(
+                            None,
+                            w!("Error determining image format, PNG expected."),
+                            w!("WinForge"),
+                            MB_OK | MB_ICONERROR);
+                        }
                     return Err(e.into());
                 },
             }

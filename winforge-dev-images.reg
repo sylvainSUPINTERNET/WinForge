@@ -1,0 +1,18 @@
+Windows Registry Editor Version 5.00
+
+; only for images this SystemFileAssociations
+; do the same thing for pdf etc ... 
+
+[-HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\image\shell\WinForge]
+[-HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\image\ContextMenus\WinForge]
+
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\image\shell\WinForge]
+"MUIVerb"="WinForge"
+"Icon"="D:\\Dev\\workspace\\WinForge\\src-tauri\\target\\debug\\winforge.exe"
+"ExtendedSubCommandsKey"="SystemFileAssociations\\image\\ContextMenus\\WinForge"
+
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\image\ContextMenus\WinForge\shell\ImagePngToJpeg]
+"MUIVerb"="PNG -> JPEG"
+
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\image\ContextMenus\WinForge\shell\ImagePngToJpeg\command]
+@="\"D:\\Dev\\workspace\\WinForge\\winforge-IPC-runner\\target\\debug\\winforge-IPC-runner.exe\" imagePngToJpeg \"%1\""

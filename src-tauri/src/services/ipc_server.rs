@@ -62,7 +62,7 @@ mod windows {
 
         let message = String::from_utf8_lossy(&buffer[..bytes_read]);
 
-        info!("IPC message received: {message}");
+        info!("IPC cmd received: {message}");
 
         // don't care it's a ping or a command, just respond with pong for now
         // if let Err(e) = pipe.write_all(b"pong").await {
