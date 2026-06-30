@@ -64,9 +64,10 @@ mod windows {
 
         info!("IPC message received: {message}");
 
-        if let Err(e) = pipe.write_all(b"pong").await {
-            error!("Write failed: {e}");
-        }
+        // don't care it's a ping or a command, just respond with pong for now
+        // if let Err(e) = pipe.write_all(b"pong").await {
+        //     error!("Write failed: {e}");
+        // }
     }
 }
 

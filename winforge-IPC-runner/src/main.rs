@@ -6,13 +6,13 @@ use tokio::{
 };
 use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
 use std::env;
-use tracing::{debug};
+use tracing::{debug, field::debug};
 use image::ImageFormat;
 use std::path::Path;
 
 const PIPE_NAME: &str = r"\\.\pipe\winforge";
 
-fn verify_command(args: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+fn verify_command(args: &Vec<String>) -> Result<String, Box<dyn std::error::Error>> {
     let cmd_name = &args[1];
     let cmd_param = &args[2];
 
@@ -21,7 +21,7 @@ fn verify_command(args: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> 
             let path = Path::new(cmd_param);
 
             match image::ImageFormat::from_path(path) {
-                Ok(ImageFormat::Png) => Ok(()),
+                Ok(ImageFormat::Png) => Ok(cmd_name.to_string()),
                 Ok(_) => {
                     debug!("File is not a PNG: {:?}", cmd_param);
                     return Err("File is not a PNG".into());
@@ -50,16 +50,18 @@ async fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
-    let result = match verify_command(&args) {
+    let cmd_to_execute = match verify_command(&args) {
         Ok(r) => r,
         Err(e) => {
             debug!("Command verification failed: {}", e);
             return Ok(());
         }
     };
+
     debug!("Command verified successfully: {:?}", args);
 
 
+    debug!("Attempting to connect to named pipe: {}", PIPE_NAME);
     let mut client = loop {
         match ClientOptions::new().open(PIPE_NAME) {
             Ok(pipe) => {
@@ -68,19 +70,29 @@ async fn main() -> std::io::Result<()> {
             },
 
             Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY as i32) => {
+                debug!("Named pipe is busy, retrying in 100ms...");
                 sleep(Duration::from_millis(100)).await;
             }
 
-            Err(e) => return Err(e),
+            Err(e) => {
+                debug!("Failed to connect to named pipe: {}", e);
+                return Err(e);
+            },
         }
     };
 
-    client.write_all(b"ping").await?;
 
-    let mut response = Vec::new();
-    client.read_to_end(&mut response).await?;
+    debug!("Client IPC write command: {:?}", cmd_to_execute);
+    client.write_all(cmd_to_execute.as_bytes()).await?;
 
-    println!("{}", String::from_utf8_lossy(&response));
+
+    // blocking code to read the response from the server 
+    // else on aura (os error 232)
+    // let mut response = Vec::new();
+    // client.read_to_end(&mut response).await?;
+
+    // println!("{}", String::from_utf8_lossy(&response));
 
     Ok(())
+
 }
