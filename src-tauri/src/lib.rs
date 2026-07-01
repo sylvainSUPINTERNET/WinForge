@@ -1,11 +1,12 @@
 mod menu;
 mod services;
+mod worker_pool;
 
-use tracing::info;
+use crate::worker_pool::TX;
 
-// mod services;
+use crossbeam_channel::{Sender, Receiver};
+use tracing::{debug, info};
 
-// use crate::services::image_converter;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -28,6 +29,35 @@ fn greet(name: &str) -> String {
 // }
 
 pub fn run() {
+
+    let (tx, rx) = crossbeam_channel::unbounded();    
+    TX.set(tx).expect("tx already initialized");
+
+    tracing_subscriber::fmt::init();
+
+    let n = std::thread::available_parallelism().unwrap().get();
+    info!("Available parallelism: {}", n);
+
+    for id in 0..n {
+        let rx = rx.clone();
+        
+        std::thread::spawn(move || {
+            debug!("Thread {} started", id);
+            loop {// will sleep if no job is available, but will wake up when a job is sent ( condvar replacement thanks to crossbeam_channel ) => litteraly 0 jump
+                match rx.recv() {
+                    Ok(job) => {
+                        debug!("Thread {} received job: {}", id, job);
+                    }
+                    Err(_) => {
+                        debug!("Thread {} exiting", id);
+                        break; // kill the thread if the crossbeam channel is closed !
+                    },
+                }
+            }
+        });
+    }
+
+
     tauri::Builder::default()
         .setup(|_app| {
             services::ipc_server::start();

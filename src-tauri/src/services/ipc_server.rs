@@ -1,6 +1,8 @@
+
 #[cfg(windows)]
 mod windows {
     use std::sync::OnceLock;
+    use crate::worker_pool::TX;
 
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
@@ -60,10 +62,15 @@ mod windows {
             }
         };
 
-        let message = String::from_utf8_lossy(&buffer[..bytes_read]);
+        let message_cmd = String::from_utf8_lossy(&buffer[..bytes_read]);
 
-        info!("IPC cmd received: {message}");
-
+        info!("IPC cmd received: {message_cmd}");
+        TX.get().map(|tx| {
+            if let Err(e) = tx.send(message_cmd.to_string()) {
+                error!("Failed to send message to worker pool: {e}");
+            }
+        });
+        
         // don't care it's a ping or a command, just respond with pong for now
         // if let Err(e) = pipe.write_all(b"pong").await {
         //     error!("Write failed: {e}");
