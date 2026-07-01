@@ -7,11 +7,13 @@ use crate::worker_pool::TX;
 use crossbeam_channel::{Sender, Receiver};
 use tracing::{debug, info};
 
+//const CHANNEL_CAP: usize = 1000;
+
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
-    menu::menu::menu_select_action(std::env::args().collect());
+    // menu::menu::menu_select_action(std::env::args().collect());
     // let args: Vec<String> = std::env::args().collect();
     // image_converter::convert_png_to_jpeg(args);
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -30,7 +32,8 @@ fn greet(name: &str) -> String {
 
 pub fn run() {
 
-    let (tx, rx) = crossbeam_channel::unbounded();    
+    let (tx, rx) =  crossbeam_channel::unbounded();  //crossbeam_channel::bounded(CHANNEL_CAP);
+      
     TX.set(tx).expect("tx already initialized");
 
     tracing_subscriber::fmt::init();
@@ -45,8 +48,9 @@ pub fn run() {
             debug!("Thread {} started", id);
             loop {// will sleep if no job is available, but will wake up when a job is sent ( condvar replacement thanks to crossbeam_channel ) => litteraly 0 jump
                 match rx.recv() {
-                    Ok(job) => {
-                        debug!("Thread {} received job: {}", id, job);
+                    Ok(job_cmd) => {
+                        debug!("Thread {} received job_cmd: {}", id, job_cmd);
+                        services::image_converter::convert_png_to_jpeg(job_cmd);
                     }
                     Err(_) => {
                         debug!("Thread {} exiting", id);

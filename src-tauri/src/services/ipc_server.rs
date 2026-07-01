@@ -66,8 +66,19 @@ mod windows {
 
         info!("IPC cmd received: {message_cmd}");
         TX.get().map(|tx| {
-            if let Err(e) = tx.send(message_cmd.to_string()) {
-                error!("Failed to send message to worker pool: {e}");
+
+            match tx.try_send(message_cmd.to_string()) {
+                Ok(_) => {
+                    info!("Sent message to worker pool: {}", message_cmd);
+                }
+                Err(crossbeam_channel::TrySendError::Full(_)) => {
+                    // worker pool is full
+                    error!("Failed to send message to worker pool: full");
+                }
+                Err(crossbeam_channel::TrySendError::Disconnected(_)) => {
+                    // worker pool has been dropped, this should not happen
+                    error!("Failed to send message to worker pool: disconnected");
+                }
             }
         });
         
