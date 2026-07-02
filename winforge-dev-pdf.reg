@@ -1,3 +1,5 @@
+Windows Registry Editor Version 5.00
+
 [-HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\shell\WinForge]
 [-HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\ContextMenus\WinForge]
 
@@ -7,7 +9,7 @@
 "ExtendedSubCommandsKey"="SystemFileAssociations\\.pdf\\ContextMenus\\WinForge"
 
 [HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\ContextMenus\WinForge\shell\PdfToDocx]
-"MUIVerb"="PDF -> DOCX"
+"MUIVerb"="PDF -> JPG"
 
 [HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\ContextMenus\WinForge\shell\PdfToDocx\command]
-@="\"D:\\Dev\\workspace\\WinForge\\winforge-IPC-runner\\target\\debug\\winforge-IPC-runner.exe\" pdfToDocx \"%1\""
+@="\"D:\\Dev\\workspace\\WinForge\\winforge-IPC-runner\\target\\debug\\winforge-IPC-runner.exe\" pdfToJpg \"%1\""

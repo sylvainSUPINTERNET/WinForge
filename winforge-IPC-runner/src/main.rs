@@ -1,4 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+mod command_payload_ipc;
+use crate::command_payload_ipc::CommandPayloadIPC;
+
 
 use std::time::Duration;
 use tokio::{
@@ -6,7 +9,7 @@ use tokio::{
     net::windows::named_pipe::ClientOptions,
     time::sleep,
 };
-use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
+use windows_sys::Win32::Foundation::*;
 use std::env;
 use tracing::{debug, field::debug};
 use image::ImageFormat;
@@ -14,13 +17,14 @@ use std::path::Path;
 
 use windows::{
     core::w,
-    Win32::UI::WindowsAndMessaging::{
-        MessageBoxW,
-        MB_ICONERROR,
-        MB_ICONINFORMATION,
-        MB_OK,
-    },
+    Win32::UI::WindowsAndMessaging::*,
+    core::{
+        HSTRING
+    }
+
 };
+use lopdf::Document;
+
 
 const PIPE_NAME: &str = r"\\.\pipe\winforge";
 
@@ -28,12 +32,48 @@ fn verify_command(args: &Vec<String>) -> Result<String, Box<dyn std::error::Erro
     let cmd_name = &args[1];
     let cmd_param = &args[2];
 
+    let cmd_payload_ipc = CommandPayloadIPC {
+        cmd_name: cmd_name.clone(),
+        resource_path: cmd_param.clone()
+    };
+
+    let cmd_payload_json_str = match serde_json::to_string(&cmd_payload_ipc) {
+        Ok(s) => s,
+        Err(e) => {
+            debug!("Failed to serialize command payload to JSON: {}", e);
+            return Err(e.into());
+        }
+    };
+
     match cmd_name.as_str() {
+        "pdfToJpg" => {
+            let path = Path::new(cmd_param);
+            let doc = Document::load(path).unwrap();
+            
+            if doc.is_encrypted() {
+                if doc.encryption_state.is_some() {
+                    debug!("Encrypted but no password, automatically trying to decrypt with empty password");
+                } else {
+                    debug!("Encrypted and password required, cannot proceed");
+                    unsafe {
+                        // TODO send a box to see the name AND enter the password !
+                        MessageBoxW(
+                        None,
+                        &HSTRING::from("This PDF is encrypted and requires a password."),
+                        w!("WinForge"),
+                        MB_OK | MB_ICONERROR);
+                    }
+                    return Err("This PDF is encrypted and requires a password.".into());
+                }
+            }
+            
+            return Ok(cmd_payload_json_str);
+        },
         "imagePngToJpeg" => {
             let path = Path::new(cmd_param);
 
             match image::ImageFormat::from_path(path) {
-                Ok(ImageFormat::Png) => Ok(cmd_name.to_string()),
+                Ok(ImageFormat::Png) => Ok(cmd_payload_json_str),
                 Ok(_) => {
                     debug!("File is not a PNG: {:?}", cmd_param);
                         unsafe {
@@ -76,8 +116,8 @@ async fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
-    let cmd_to_execute = match verify_command(&args) {
-        Ok(r) => r,
+    let cmd_to_execute: String = match verify_command(&args) {
+        Ok(command_payload_ipc_serialized) => command_payload_ipc_serialized,
         Err(e) => {
             debug!("Command verification failed: {}", e);
             return Ok(());
@@ -106,6 +146,7 @@ async fn main() -> std::io::Result<()> {
             },
         }
     };
+
 
 
     debug!("Client IPC write command: {:?}", cmd_to_execute);

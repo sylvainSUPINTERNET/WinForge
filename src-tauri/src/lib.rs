@@ -1,6 +1,7 @@
 mod menu;
 mod services;
 mod worker_pool;
+mod deserializers;
 
 use crate::worker_pool::TX;
 
@@ -48,9 +49,15 @@ pub fn run() {
             debug!("Thread {} started", id);
             loop {// will sleep if no job is available, but will wake up when a job is sent ( condvar replacement thanks to crossbeam_channel ) => litteraly 0 jump
                 match rx.recv() {
-                    Ok(job_cmd) => {
-                        debug!("Thread {} received job_cmd: {}", id, job_cmd);
-                        services::image_converter::convert_png_to_jpeg(job_cmd);
+                    Ok(command_payload_ipc) => {
+                        serde_json::from_str(&command_payload_ipc).map(|job_cmd: deserializers::command_message_ipc::CommandPayloadIPC| {
+                            debug!("Thread {} received job_cmd: {:?}", id, job_cmd);
+                            services::image_converter::convert_png_to_jpeg(job_cmd.cmd_name);
+                        }).unwrap_or_else(|err| {
+                            debug!("Thread {} failed to deserialize command_payload_ipc: {}, error: {}", id, command_payload_ipc, err);
+                        });
+                        // debug!("Thread {} received job_cmd: {}", id, command_payload_ipc);
+                        // services::image_converter::convert_png_to_jpeg(job_cmd);
                     }
                     Err(_) => {
                         debug!("Thread {} exiting", id);
