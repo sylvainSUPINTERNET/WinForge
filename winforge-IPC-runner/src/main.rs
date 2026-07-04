@@ -44,10 +44,10 @@ fn verify_command(args: &Vec<String>) -> Result<String, Box<dyn std::error::Erro
             return Err(e.into());
         }
     };
+    let path = Path::new(cmd_param);
 
     match cmd_name.as_str() {
         "pdfToJpg" => {
-            let path = Path::new(cmd_param);
             let doc = Document::load(path).unwrap();
             
             if doc.is_encrypted() {
@@ -70,7 +70,6 @@ fn verify_command(args: &Vec<String>) -> Result<String, Box<dyn std::error::Erro
             return Ok(cmd_payload_json_str);
         },
         "imagePngToJpeg" => {
-            let path = Path::new(cmd_param);
 
             match image::ImageFormat::from_path(path) {
                 Ok(ImageFormat::Png) => Ok(cmd_payload_json_str),

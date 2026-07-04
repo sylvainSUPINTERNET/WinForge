@@ -2,11 +2,13 @@ mod menu;
 mod services;
 mod worker_pool;
 mod deserializers;
+mod commands;
 
 use crate::worker_pool::TX;
 
 use crossbeam_channel::{Sender, Receiver};
 use tracing::{debug, info};
+use crate::commands::command_manager;
 
 //const CHANNEL_CAP: usize = 1000;
 
@@ -42,25 +44,29 @@ pub fn run() {
     let n = std::thread::available_parallelism().unwrap().get();
     info!("Available parallelism: {}", n);
 
-    for id in 0..n {
+    for thread_id in 0..n {
         let rx = rx.clone();
         
         std::thread::spawn(move || {
-            debug!("Thread {} started", id);
+            debug!("Thread {} started", thread_id);
             loop {// will sleep if no job is available, but will wake up when a job is sent ( condvar replacement thanks to crossbeam_channel ) => litteraly 0 jump
                 match rx.recv() {
                     Ok(command_payload_ipc) => {
-                        serde_json::from_str(&command_payload_ipc).map(|job_cmd: deserializers::command_message_ipc::CommandPayloadIPC| {
-                            debug!("Thread {} received job_cmd: {:?}", id, job_cmd);
-                            services::image_converter::convert_png_to_jpeg(job_cmd.cmd_name);
+
+                        serde_json::from_str(&command_payload_ipc)
+                                    .map(|job_cmd: deserializers::command_message_ipc::CommandPayloadIPC| { 
+                                        debug!("Thread {} received job_cmd: {:?}", thread_id, job_cmd);
+                                        
+                                        command_manager::execute(thread_id, job_cmd);
+        
+                        
                         }).unwrap_or_else(|err| {
-                            debug!("Thread {} failed to deserialize command_payload_ipc: {}, error: {}", id, command_payload_ipc, err);
+                            debug!("Thread {} failed to deserialize command_payload_ipc: {}, error: {}", thread_id, command_payload_ipc, err);
                         });
-                        // debug!("Thread {} received job_cmd: {}", id, command_payload_ipc);
-                        // services::image_converter::convert_png_to_jpeg(job_cmd);
                     }
+
                     Err(_) => {
-                        debug!("Thread {} exiting", id);
+                        debug!("Thread {} exiting", thread_id);
                         break; // kill the thread if the crossbeam channel is closed !
                     },
                 }

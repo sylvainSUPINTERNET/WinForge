@@ -1,9 +1,14 @@
 # WinForge 
 
 ```` powershell
+
+$env:RUST_LOG="debug"
+
 .\winforge-dev.latest.reg ;; Stop-Process -Name explorer -Force
 
 npm run tauri -- dev
+
+$env:RUST_LOG="debug" ;; npm run tauri -- dev
 
 ````
 

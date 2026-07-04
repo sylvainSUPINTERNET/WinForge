@@ -77,7 +77,7 @@ mod windows {
                 }
                 Err(crossbeam_channel::TrySendError::Disconnected(_)) => {
                     // worker pool has been dropped, this should not happen
-                    error!("Failed to send message to worker pool: disconnected");
+                    error!("Failed to  to worker pool: disconnected");
                 }
             }
         });
