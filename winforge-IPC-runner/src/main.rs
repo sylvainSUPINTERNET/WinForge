@@ -34,7 +34,8 @@ fn verify_command(args: &Vec<String>) -> Result<String, Box<dyn std::error::Erro
 
     let cmd_payload_ipc = CommandPayloadIPC {
         cmd_name: cmd_name.clone(),
-        resource_path: cmd_param.clone()
+        resource_path: cmd_param.clone(),
+        password: None,
     };
 
     let cmd_payload_json_str = match serde_json::to_string(&cmd_payload_ipc) {

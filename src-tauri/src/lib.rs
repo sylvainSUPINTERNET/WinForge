@@ -4,6 +4,8 @@ mod worker_pool;
 mod deserializers;
 mod commands;
 
+use std::sync::Arc;
+
 use crate::worker_pool::TX;
 
 use crossbeam_channel::{Sender, Receiver};
@@ -33,7 +35,7 @@ fn greet(name: &str) -> String {
 //         .expect("error while running tauri application");
 // }
 
-pub fn run() {
+pub fn run(pdfium: Arc<pdfium_render::prelude::Pdfium>) {
 
     let (tx, rx) =  crossbeam_channel::unbounded();  //crossbeam_channel::bounded(CHANNEL_CAP);
       
@@ -46,7 +48,9 @@ pub fn run() {
 
     for thread_id in 0..n {
         let rx = rx.clone();
-        
+        let pdfium_clone = pdfium.clone();
+
+
         std::thread::spawn(move || {
             debug!("Thread {} started", thread_id);
             loop {// will sleep if no job is available, but will wake up when a job is sent ( condvar replacement thanks to crossbeam_channel ) => litteraly 0 jump
@@ -57,7 +61,7 @@ pub fn run() {
                                     .map(|job_cmd: deserializers::command_message_ipc::CommandPayloadIPC| { 
                                         debug!("Thread {} received job_cmd: {:?}", thread_id, job_cmd);
                                         
-                                        command_manager::execute(thread_id, job_cmd);
+                                        command_manager::execute(thread_id, job_cmd, &pdfium_clone);
         
                         
                         }).unwrap_or_else(|err| {
