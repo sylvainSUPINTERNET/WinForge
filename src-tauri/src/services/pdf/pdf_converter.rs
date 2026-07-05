@@ -54,3 +54,7 @@ pub fn pdf_to_jpg(thread_id: usize, job_cmd:CommandPayloadIPC, pdfium: &Arc<pdfi
 
     //let page = document.unwrap().pages().get(0).expect("Failed to get page 1");
 }
+
+pub fn pdf_merge(thread_id: usize, job_cmd:CommandPayloadIPC, pdfium: &Arc<pdfium_render::prelude::Pdfium>) {
+    debug!("Execute command for {:?}", job_cmd);
+}

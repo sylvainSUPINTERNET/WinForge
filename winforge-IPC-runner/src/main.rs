@@ -5,13 +5,13 @@ use crate::command_payload_ipc::CommandPayloadIPC;
 
 use std::time::Duration;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::AsyncWriteExt,
     net::windows::named_pipe::ClientOptions,
     time::sleep,
 };
 use windows_sys::Win32::Foundation::*;
 use std::env;
-use tracing::{debug, field::debug};
+use tracing::debug;
 use image::ImageFormat;
 use std::path::Path;
 
@@ -27,6 +27,8 @@ use lopdf::Document;
 
 
 const PIPE_NAME: &str = r"\\.\pipe\winforge";
+const PDF_TO_JPG_COMMAND: &str = "pdfToJpg";
+const PDF_MERGE_COMMAND: &str = "pdfMerge";
 
 fn verify_command(args: &Vec<String>) -> Result<String, Box<dyn std::error::Error>> {
     let cmd_name = &args[1];
@@ -48,7 +50,7 @@ fn verify_command(args: &Vec<String>) -> Result<String, Box<dyn std::error::Erro
     let path = Path::new(cmd_param);
 
     match cmd_name.as_str() {
-        "pdfToJpg" => {
+        PDF_TO_JPG_COMMAND | PDF_MERGE_COMMAND => {
             let doc = Document::load(path).unwrap();
             
             if doc.is_encrypted() {
@@ -70,35 +72,6 @@ fn verify_command(args: &Vec<String>) -> Result<String, Box<dyn std::error::Erro
             
             return Ok(cmd_payload_json_str);
         },
-        "imagePngToJpeg" => {
-
-            match image::ImageFormat::from_path(path) {
-                Ok(ImageFormat::Png) => Ok(cmd_payload_json_str),
-                Ok(_) => {
-                    debug!("File is not a PNG: {:?}", cmd_param);
-                        unsafe {
-                            MessageBoxW(
-                            None,
-                            w!("This file is not a PNG."),
-                            w!("WinForge"),
-                            MB_OK | MB_ICONERROR);
-                        }
-                    return Err("File is not a PNG".into());
-                },
-                Err(e) => {
-                    debug!("Error determining image format: {:?}", e);
-                        unsafe {
-                            MessageBoxW(
-                            None,
-                            w!("Error determining image format, PNG expected."),
-                            w!("WinForge"),
-                            MB_OK | MB_ICONERROR);
-                        }
-                    return Err(e.into());
-                },
-            }
-        }
-
         _ => Err("Unknown command".into()),
     }
 }

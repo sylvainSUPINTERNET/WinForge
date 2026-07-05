@@ -13,3 +13,9 @@ Windows Registry Editor Version 5.00
 
 [HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\ContextMenus\WinForge\shell\PdfToDocx\command]
 @="\"D:\\Dev\\workspace\\WinForge\\winforge-IPC-runner\\target\\debug\\winforge-IPC-runner.exe\" pdfToJpg \"%1\""
+
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\ContextMenus\WinForge\shell\PdfMerge]
+"MUIVerb"="PDF Merge"
+
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\ContextMenus\WinForge\shell\PdfMerge\command]
+@="\"D:\\Dev\\workspace\\WinForge\\winforge-IPC-runner\\target\\debug\\winforge-IPC-runner.exe\" pdfMerge \"%1\""

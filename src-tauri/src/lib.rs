@@ -1,4 +1,3 @@
-mod menu;
 mod services;
 mod worker_pool;
 mod deserializers;
