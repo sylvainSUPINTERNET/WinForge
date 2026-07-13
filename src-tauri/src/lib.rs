@@ -10,7 +10,14 @@ use crate::worker_pool::TX;
 use crossbeam_channel::{Sender, Receiver};
 use tracing::{debug, info};
 use crate::commands::command_manager;
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
+use windows::{
+    core::{w, HSTRING},
+    Win32::UI::WindowsAndMessaging::{
+        MessageBoxW, MB_ICONERROR, MB_OK,
+    },
+};
 //const CHANNEL_CAP: usize = 1000;
 
 
@@ -21,6 +28,13 @@ fn greet(name: &str) -> String {
     // let args: Vec<String> = std::env::args().collect();
     // image_converter::convert_png_to_jpeg(args);
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn error_command(app: tauri::AppHandle) {
+    app.dialog()
+        .message("Hello")
+        .blocking_show();
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -83,6 +97,7 @@ pub fn run(pdfium: Arc<pdfium_render::prelude::Pdfium>) {
             services::ipc_server::start();
             Ok(())
         })
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|_app, args, _cwd| {
             // When you select multiple element on explorer, will block the windows and just send infos here
             // so each "info" ( event ) = 1 individual action
@@ -103,7 +118,7 @@ pub fn run(pdfium: Arc<pdfium_render::prelude::Pdfium>) {
 
             info!("==============================================");
         }))
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![greet, error_command])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
