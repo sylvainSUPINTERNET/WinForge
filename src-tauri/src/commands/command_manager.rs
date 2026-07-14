@@ -9,14 +9,19 @@ use crate::services::pdf::pdf_converter::{pdf_to_jpg, pdf_merge};
 const CONVERT_PDF_TO_JPG: &str = "pdfToJpg";
 const PDF_MERGE: &str = "pdfMerge";
 
-pub fn execute(thread_id: usize, job_cmd: CommandPayloadIPC, pdfium: &Arc<pdfium_render::prelude::Pdfium>) {
+pub fn execute(
+    thread_id: usize,
+    job_cmd: CommandPayloadIPC,
+    pdfium: &Arc<pdfium_render::prelude::Pdfium>,
+    app: &tauri::AppHandle,
+) {
 
     match job_cmd.cmd_name.as_str() {
         CONVERT_PDF_TO_JPG => {
-            pdf_to_jpg(thread_id, job_cmd, pdfium);
+            pdf_to_jpg(thread_id, job_cmd, pdfium, app);
         }
         PDF_MERGE => {
-            pdf_merge(thread_id, job_cmd, pdfium);
+            pdf_merge(thread_id, job_cmd, pdfium, app);
         }
         _ => {
             debug!("Thread {} received unknown command: {:?}", thread_id, job_cmd.cmd_name);

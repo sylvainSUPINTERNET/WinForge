@@ -2,6 +2,7 @@ mod services;
 mod worker_pool;
 mod deserializers;
 mod commands;
+mod jobs;
 
 use std::sync::Arc;
 
@@ -59,41 +60,44 @@ pub fn run(pdfium: Arc<pdfium_render::prelude::Pdfium>) {
     let n = std::thread::available_parallelism().unwrap().get();
     info!("Available parallelism: {}", n);
 
-    for thread_id in 0..n {
-        let rx = rx.clone();
-        let pdfium_clone = pdfium.clone();
-
-
-        std::thread::spawn(move || {
-            debug!("Thread {} started", thread_id);
-            loop {// will sleep if no job is available, but will wake up when a job is sent ( condvar replacement thanks to crossbeam_channel ) => litteraly 0 jump
-                match rx.recv() {
-                    Ok(command_payload_ipc) => {
-
-                        serde_json::from_str(&command_payload_ipc)
-                                    .map(|job_cmd: deserializers::command_message_ipc::CommandPayloadIPC| { 
-                                        debug!("Thread {} received job_cmd: {:?}", thread_id, job_cmd);
-                                        
-                                        command_manager::execute(thread_id, job_cmd, &pdfium_clone);
-        
-                        
-                        }).unwrap_or_else(|err| {
-                            debug!("Thread {} failed to deserialize command_payload_ipc: {}, error: {}", thread_id, command_payload_ipc, err);
-                        });
-                    }
-
-                    Err(_) => {
-                        debug!("Thread {} exiting", thread_id);
-                        break; // kill the thread if the crossbeam channel is closed !
-                    },
-                }
-            }
-        });
-    }
-
-
     tauri::Builder::default()
-        .setup(|_app| {
+        .setup(move |app| {
+            let app_handle = app.handle().clone();
+
+            for thread_id in 0..n {
+                let rx = rx.clone();
+                let pdfium_clone = pdfium.clone();
+                let app_handle = app_handle.clone();
+
+                std::thread::spawn(move || {
+                    debug!("Thread {} started", thread_id);
+                    loop {// will sleep if no job is available, but will wake up when a job is sent ( condvar replacement thanks to crossbeam_channel ) => litteraly 0 jump
+                        match rx.recv() {
+                            Ok(command_payload_ipc) => {
+                                serde_json::from_str(&command_payload_ipc)
+                                    .map(|job_cmd: deserializers::command_message_ipc::CommandPayloadIPC| {
+                                        debug!("Thread {} received job_cmd: {:?}", thread_id, job_cmd);
+
+                                        command_manager::execute(
+                                            thread_id,
+                                            job_cmd,
+                                            &pdfium_clone,
+                                            &app_handle,
+                                        );
+                                    }).unwrap_or_else(|err| {
+                                        debug!("Thread {} failed to deserialize command_payload_ipc: {}, error: {}", thread_id, command_payload_ipc, err);
+                                    });
+                            }
+
+                            Err(_) => {
+                                debug!("Thread {} exiting", thread_id);
+                                break; // kill the thread if the crossbeam channel is closed !
+                            },
+                        }
+                    }
+                });
+            }
+
             services::ipc_server::start();
             Ok(())
         })
