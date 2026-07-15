@@ -11,6 +11,22 @@ use crate::types::cmd_event::CmdEvent;
 use tracing::{debug, error, field::debug, info};
 
 
+fn init_db(conn: &Connection) -> Result<()> {
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS folders (
+            id TEXT PRIMARY KEY,
+            resource_path TEXT NOT NULL,
+            prompt TEXT
+        )",
+        [],
+    )?;
+
+    debug!("Database initialized successfully");
+    Ok(())
+}
+
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -19,15 +35,8 @@ async fn main() {
     let (s, r) = bounded::<CmdEvent>(1);
 
 
-    thread::spawn( move || {
-        loop {
-            let command = r.recv().unwrap(); //condvar
-            debug!("Processing command: {:?} ...", command);
-        }
-    });
-
     // for writer avoid // ! (db locking)
-    let conn = match Connection::open("winforge.db") {
+    let conn: Connection = match Connection::open("winforge.db") {
         Ok(conn) => {
             if let Err(e) = conn.pragma_update(None, "journal_mode", "WAL") {
                 tracing::error!("Failed to set journal_mode: {e}");
@@ -41,6 +50,12 @@ async fn main() {
                 tracing::error!("Failed to set busy_timeout: {e}");
                 return;
             }
+
+            if let Err(e) = init_db(&conn) {
+                tracing::error!("Failed to initialize database: {e}");
+                return;
+            }
+
             conn
         },
         Err(error) => {
@@ -49,6 +64,15 @@ async fn main() {
         }
     };
 
+    // TODO => https://docs.rs/r2d2_sqlite/latest/r2d2_sqlite/
+
+    thread::spawn( move || {
+        loop {
+            let command_event: CmdEvent = r.recv().unwrap(); //condvar
+            debug!("  > Processing command_event: {:?}", command_event);
+
+        }
+    });
     
     if let Err(error) = ipc_server::run(&s).await {
         tracing::error!("IPC server stopped: {error}");
