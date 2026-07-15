@@ -1,16 +1,21 @@
 #[cfg(windows)]
 mod platform {
-    use tokio::{
+    use std::any::Any; 
+
+use crossbeam_channel::Sender;
+use tokio::{
         io::AsyncReadExt,
         net::windows::named_pipe::{NamedPipeServer, ServerOptions},
     };
-    use tracing::{error, info};
+use tracing::{error, info, debug};
+
+use crate::types::cmd_event::CmdEvent;
 
     const PIPE_NAME: &str = r"\\.\pipe\winforge";
     const MAX_MESSAGE_SIZE: usize = 1024 * 1024;
     const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
-    pub async fn run() -> std::io::Result<()> {
+    pub async fn run(sender:&Sender<CmdEvent>) -> std::io::Result<()> {
         info!("IPC server listening on {PIPE_NAME}");
 
         loop {
@@ -21,11 +26,11 @@ mod platform {
                 continue;
             }
 
-            tokio::spawn(handle_client(pipe));
+            tokio::spawn(handle_client(pipe, sender.clone()));
         }
     }
 
-    async fn handle_client(mut pipe: NamedPipeServer) {
+    async fn handle_client(mut pipe: NamedPipeServer, sender: Sender<CmdEvent>) {
         let mut message = Vec::new();
         let mut buffer = [0_u8; 4096];
 
@@ -57,7 +62,17 @@ mod platform {
         }
 
         match String::from_utf8(message) {
-            Ok(command) => info!("IPC cmd received: {command}"),
+            Ok(command) => {
+                match serde_json::from_str::<CmdEvent>(&command) {
+                    Ok(cmd) => {
+                        debug!("IPC cmd received: {cmd:?}");
+                        sender.send(cmd).unwrap();
+                    }
+                    Err(err) => {
+                        error!("Invalid JSON: {err}");
+                    }
+                }
+            },
             Err(error) => error!("IPC message is not valid UTF-8: {error}"),
         }
     }

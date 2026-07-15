@@ -1,5 +1,9 @@
 Windows Svc
 
+```` bash
+cargo build --release
+````
+
 ```` bash 
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v TestDaemon /t REG_SZ /d '"C:\Workspace\perso\WinForge\winforge-background-service\target\release\winforge-background-service.exe"' /f
 

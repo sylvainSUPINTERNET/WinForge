@@ -1,1 +1,4 @@
 /target/
+winforge.db
+winforge.db-shm
+winforge.db-wal
