@@ -98,7 +98,7 @@ async fn main() {
     // Init watcher 
     match pool.get() {
         Ok(conn) => {
-            let mut stmt = conn.prepare("SELECT id, uid, resource_path, prompt, created_at FROM folders").expect("Failed to prepare statement");
+            let mut stmt = conn.prepare("SELECT id, uid, resource_path, prompt, created_at FROM folders ORDER BY created_at DESC").expect("Failed to prepare statement");
             let paths: Vec<Folder> = match stmt
                 .query_map(params![], |row| {
                     Ok(Folder {
@@ -118,6 +118,18 @@ async fn main() {
                 };
 
                 debug!("Retrieved {} folders from the database", paths.len());
+                if !paths.is_empty() {
+                    for folder in paths {
+                        let path = Path::new(&folder.resource_path);
+                        if let Err(e) = watcher.watch(path, RecursiveMode::Recursive) {
+                            error!("Failed to watch path {}: {e}", folder.resource_path);
+                        } else {
+                            debug!(" + Watching path: {}", folder.resource_path);
+                        }
+                    }
+                } else {
+                    debug!("No folders found in the database to watch");
+                }
         }
         Err(e) => {
             error!("Failed to get connection from pool: {e}");
