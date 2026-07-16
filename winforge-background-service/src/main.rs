@@ -1,7 +1,7 @@
 mod ipc_server;
 mod types;
 
-use std::thread;
+use std::{any::Any, path::Path, sync::mpsc, thread};
 
 use rusqlite::{params, Connection, Result};
 
@@ -13,6 +13,10 @@ use tracing::{debug, error, field::debug, info};
 use r2d2;
 use r2d2_sqlite::SqliteConnectionManager;
 use r2d2::CustomizeConnection;
+
+use notify::{Event as WatcherEvent, RecursiveMode, Result as WatcherResult, Watcher};
+
+
 
 #[derive(Debug)]
 struct SqliteInitializer;
@@ -49,8 +53,53 @@ async fn main() {
 
     tracing_subscriber::fmt::init();
 
+
     // limit the number of threads to avoid excessive resource usage especially to write to the database sqlite
     let (s, r) = bounded::<CmdEvent>(1);
+    let (tx, rx) = mpsc::channel::<WatcherResult<WatcherEvent>>();
+        
+    let mut watcher = match notify::recommended_watcher(tx) {
+        Ok(w) => w,
+        Err(e) => {
+            error!("Failed to create watcher: {e}");
+            return;
+        }
+    };
+
+
+    // TODO => bouger la DB pour préparer la distribution dans app local
+    // TODO => init on doit lister les folder 
+    // TODO => mais aussi rajouter quand on reçoit un event nouveau
+
+    // TODO test
+    let p1 = Path::new("C:\\Workspace\\perso\\WinForge\\winforge-background-service\\watch1");
+    let p2 = Path::new("C:\\Workspace\\perso\\WinForge\\winforge-background-service\\watch2");
+
+    watcher.watch(p1, RecursiveMode::Recursive).expect(&format!("Failed to watch path {}", p1.to_str().unwrap()));
+    watcher.watch(p2, RecursiveMode::Recursive).expect(&format!("Failed to watch path {}", p2.to_str().unwrap()));
+
+
+    thread::spawn( move || {
+        debug!("Starting filesystem watcher thread - (sleeping and waiting for new events)");
+
+        for w_ev in rx { // blocking waiting for msg
+            match w_ev {
+                Ok(event) => {
+
+                    if event.kind.is_create() {
+                        debug!("Received filesystem event: {:?}", event);
+                    }
+
+                }
+                Err(e) => {
+                    error!("Watch error: {e}");
+                }
+            }
+        }
+    });
+
+
+
 
     // Init pool for sqlite connections
     let manager = SqliteConnectionManager::file("winforge.db");
@@ -92,6 +141,10 @@ async fn main() {
 
         }
     });
+
+
+
+
     
     if let Err(error) = ipc_server::run(&s).await {
         tracing::error!("IPC server stopped: {error}");

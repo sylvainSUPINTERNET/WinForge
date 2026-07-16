@@ -2,3 +2,5 @@
 winforge.db
 winforge.db-shm
 winforge.db-wal
+watch1/**
+watch2/**
