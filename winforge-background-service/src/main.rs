@@ -17,6 +17,7 @@ use r2d2::CustomizeConnection;
 
 use notify::{Event as WatcherEvent, RecursiveMode, Result as WatcherResult, Watcher};
 
+use futures::future::join_all;
 
 
 #[derive(Debug)]
@@ -50,6 +51,15 @@ fn init_db(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+fn add_watcher(resource_path: &str, watcher: &mut notify::ReadDirectoryChangesWatcher) {
+        let path = Path::new(resource_path);
+        if let Err(e) = watcher.watch(path, RecursiveMode::Recursive) {
+            error!("Failed to watch path {}: {e}", resource_path);
+        } else {
+            debug!(" + Watching path: {}", resource_path);
+        }
+}
+
 
 #[tokio::main]
 async fn main() {
@@ -76,7 +86,7 @@ async fn main() {
     let (s, r) = bounded::<CmdEvent>(1);
     let (tx, rx) = mpsc::channel::<WatcherResult<WatcherEvent>>();
         
-    let mut watcher = match notify::recommended_watcher(tx) {
+    let mut watcher: notify::ReadDirectoryChangesWatcher = match notify::recommended_watcher(tx) {
         Ok(w) => w,
         Err(e) => {
             error!("Failed to create watcher: {e}");
@@ -84,15 +94,15 @@ async fn main() {
         }
     };
     // TODO => bouger la DB pour préparer la distribution dans app local
-    // TODO => init on doit lister les folder 
+
     // TODO => mais aussi rajouter quand on reçoit un event nouveau
 
     // TODO test
-    let p1 = Path::new("D:\\Dev\\workspace\\WinForge\\winforge-background-service\\watch1");
-    let p2 = Path::new("D:\\Dev\\workspace\\WinForge\\winforge-background-service\\watch2");
+    // let p1 = Path::new("D:\\Dev\\workspace\\WinForge\\winforge-background-service\\watch1");
+    // let p2 = Path::new("D:\\Dev\\workspace\\WinForge\\winforge-background-service\\watch2");
 
-    watcher.watch(p1, RecursiveMode::Recursive).expect(&format!("Failed to watch path {}", p1.to_str().unwrap()));
-    watcher.watch(p2, RecursiveMode::Recursive).expect(&format!("Failed to watch path {}", p2.to_str().unwrap()));
+    // watcher.watch(p1, RecursiveMode::Recursive).expect(&format!("Failed to watch path {}", p1.to_str().unwrap()));
+    // watcher.watch(p2, RecursiveMode::Recursive).expect(&format!("Failed to watch path {}", p2.to_str().unwrap()));
 
     
     // Init watcher 
@@ -119,13 +129,8 @@ async fn main() {
 
                 debug!("Retrieved {} folders from the database", paths.len());
                 if !paths.is_empty() {
-                    for folder in paths {
-                        let path = Path::new(&folder.resource_path);
-                        if let Err(e) = watcher.watch(path, RecursiveMode::Recursive) {
-                            error!("Failed to watch path {}: {e}", folder.resource_path);
-                        } else {
-                            debug!(" + Watching path: {}", folder.resource_path);
-                        }
+                    for folder in &paths {
+                        add_watcher(&folder.resource_path, &mut watcher);
                     }
                 } else {
                     debug!("No folders found in the database to watch");
@@ -169,19 +174,22 @@ async fn main() {
             let id_cmd = command_event.get_id();
             let prompt: Option<String> = None; // NULL 
 
+            // TODO => là il manque la verif si l'event et de type folder et addTrigger
+            //  CmdEvent { cmd_name: "addTrigger", resource_path: "D:\\Dev\\workspace\\WinForge\\winforge-background-service\\watch2", resource_type: "FOLDER", password: None }
+            // TODO save in DB the folder AND add the watcher to the watcher thread ( reuse method)
             match conn.execute(
                 "INSERT INTO folders (uid, resource_path, prompt, created_at)
-VALUES (?1, ?2, ?3, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-ON CONFLICT(uid) DO UPDATE SET prompt = excluded.prompt",
+                            VALUES (?1, ?2, ?3, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                            ON CONFLICT(uid) DO UPDATE SET prompt = excluded.prompt",
                 params![id_cmd, command_event.resource_path, prompt]) {
                     Ok(_) => {
                         debug!("Successfully executed SQL: {}", "INSERT INTO folders (uid, resource_path, prompt) VALUES (?1, ?2, ?3) ON CONFLICT(uid) DO UPDATE SET prompt=excluded.prompt");
+
                     },
                     Err(error) => {
                         error!("Failed to insert or update command_event in database: {error}");
                     }
                 }
-
         }
     });
 
