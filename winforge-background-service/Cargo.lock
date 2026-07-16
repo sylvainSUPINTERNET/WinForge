@@ -714,6 +714,7 @@ name = "winforge-background-service"
 version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
+ "r2d2",
  "r2d2_sqlite",
  "rusqlite",
  "serde",
