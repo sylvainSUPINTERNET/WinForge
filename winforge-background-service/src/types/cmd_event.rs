@@ -1,3 +1,5 @@
+use sha2::{Digest, Sha256};
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CmdEvent {
     pub cmd_name: String,
@@ -8,6 +10,18 @@ pub struct CmdEvent {
 
 impl CmdEvent {
     pub fn get_id(&self) -> String {
-        String::from(self.resource_path.as_str()) + self.resource_type.as_str() + self.cmd_name.as_str()
+        let input = format!(
+            "{}{}{}",
+            self.resource_path,
+            self.resource_type,
+            self.cmd_name
+        );
+        
+        let mut sha256: Sha256 = Sha256::new();
+        sha256.update(input);
+        sha256.finalize()
+            .iter()
+            .map(|byte| format!("{:02x}", byte))
+            .collect::<String>()
     }
 }
