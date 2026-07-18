@@ -4,12 +4,12 @@ mod deserializers;
 mod commands;
 mod jobs;
 
-use std::sync::Arc;
+use std::{fs, sync::Arc};
 
 use crate::worker_pool::TX;
 
 use crossbeam_channel::{Sender, Receiver};
-use tracing::{debug, info};
+use tracing::{debug, info, error};
 use crate::commands::command_manager;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
@@ -29,6 +29,52 @@ fn greet(name: &str) -> String {
     // let args: Vec<String> = std::env::args().collect();
     // image_converter::convert_png_to_jpeg(args);
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn discover_port_winforge_background_service() -> serde_json::Value {
+    let Some(data_local_dir) = dirs::data_local_dir() else {
+        let message = "Unable to resolve the local application data directory";
+        error!(message);
+        return serde_json::json!({
+            "code": 500,
+            "message": { "error": message }
+        });
+    };
+
+    let path = data_local_dir.join("WinForge").join("runtime-port.json");
+    let contents = match fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(err) => {
+            let message = format!("Failed to read {}: {}", path.display(), err);
+            error!("{}", message);
+            return serde_json::json!({
+                "code": 500,
+                "message": { "error": message }
+            });
+        }
+    };
+
+    match serde_json::from_str::<serde_json::Value>(&contents) {
+        Ok(discovery_info) => {
+            info!(
+                "Background service discovery info read from {}",
+                path.display()
+            );
+            serde_json::json!({
+                "code": 200,
+                "message": discovery_info
+            })
+        }
+        Err(err) => {
+            let message = format!("Invalid JSON in {}: {}", path.display(), err);
+            error!("{}", message);
+            serde_json::json!({
+                "code": 500,
+                "message": { "error": message }
+            })
+        }
+    }
 }
 
 #[tauri::command]
@@ -122,7 +168,11 @@ pub fn run(pdfium: Arc<pdfium_render::prelude::Pdfium>) {
 
             info!("==============================================");
         }))
-        .invoke_handler(tauri::generate_handler![greet, error_command])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            discover_port_winforge_background_service,
+            error_command
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

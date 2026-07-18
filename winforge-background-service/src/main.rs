@@ -1,11 +1,8 @@
 mod ipc_server;
-mod types;
 mod models;
-
-use axum::{
-    routing::get,
-    Router,
-};
+mod routes;
+mod state;
+mod types;
 
 use std::{any::Any, path::Path, sync::mpsc, thread};
 
@@ -13,7 +10,7 @@ use rusqlite::{params, Connection, Result};
 
 use crossbeam_channel::{bounded, unbounded};
 
-use crate::{models::folders::Folder, types::cmd_event::CmdEvent};
+use crate::{models::folders::Folder, state::AppState, types::cmd_event::CmdEvent};
 use tracing::{debug, error, field::debug, info};
 
 use r2d2;
@@ -38,6 +35,8 @@ impl CustomizeConnection<Connection, rusqlite::Error> for SqliteInitializer {
         Ok(())
     }
 }
+
+
 
 fn init_db(conn: &Connection) -> Result<()> {
 
@@ -80,8 +79,27 @@ async fn main() {
         .build(manager)
         .expect("Failed to create connection pool");
 
+    let listener = match tokio::net::TcpListener::bind("127.0.0.1:0").await {
+        Ok(listener) => listener,
+        Err(error) => {
+            error!("Failed to bind HTTP server: {error}");
+            return;
+        }
+    };
+
+    let port = match listener.local_addr() {
+        Ok(address) => address.port(),
+        Err(error) => {
+            error!("Failed to get HTTP server address: {error}");
+            return;
+        }
+    };
+
+    let app_state = AppState::new(pool, port);
+    
+
     // Initialize the database schema
-    if let Err(e) = init_db(&pool.get().expect("Failed to get connection from pool")) {
+    if let Err(e) = init_db(&app_state.pool.get().expect("Failed to get connection from pool")) {
         tracing::error!("Failed to initialize database: {e}");
         return;
     }
@@ -111,7 +129,7 @@ async fn main() {
 
     
     // Init watcher 
-    match pool.get() {
+    match app_state.pool.get() {
         Ok(conn) => {
             let mut stmt = conn.prepare("SELECT id, uid, resource_path, prompt, created_at FROM folders ORDER BY created_at DESC").expect("Failed to prepare statement");
             let paths: Vec<Folder> = match stmt
@@ -169,13 +187,18 @@ async fn main() {
 
     // Start the IPC server "listener" in a separate thread
     // Grab 1 connection from the pool to use in the thread when a new command_event is received from the IPC server and the event is send to the channel correctly.
+    let ipc_state = app_state.clone();
+
     thread::spawn( move || {
         debug!("Starting IPC server listener thread - (sleeping and waiting for new channel messages)");
         loop {
             let command_event: CmdEvent = r.recv().unwrap(); //condvar (wakeup only if new message)
             debug!("  > Processing command_event: {:?}", command_event);
 
-            let conn: r2d2::PooledConnection<SqliteConnectionManager> = pool.get().expect("Failed to get connection from pool");
+            let conn: r2d2::PooledConnection<SqliteConnectionManager> = ipc_state
+                .pool
+                .get()
+                .expect("Failed to get connection from pool");
             let id_cmd = command_event.get_id();
             let prompt: Option<String> = None; // NULL 
 
@@ -204,11 +227,10 @@ async fn main() {
     // TODO => add a mechanism to restart the IPC server and the HTTP server in case of failure
     let http_task = tokio::spawn(async move {
         
-        let app = Router::new().route("/", get(|| async { "Hello, World!" }));
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        debug!("HTTP server listening on {}", listener.local_addr().unwrap());
+        let app = routes::create_router(app_state);
+        debug!("HTTP server listening on 127.0.0.1:{port}");
 
-        if let Err(e) = axum::serve(listener,app).await {
+        if let Err(e) = axum::serve(listener, app).await {
             tracing::error!("HTTP server stopped: {e}");
         }
     });
