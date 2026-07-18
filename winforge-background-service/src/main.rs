@@ -2,6 +2,11 @@ mod ipc_server;
 mod types;
 mod models;
 
+use axum::{
+    routing::get,
+    Router,
+};
+
 use std::{any::Any, path::Path, sync::mpsc, thread};
 
 use rusqlite::{params, Connection, Result};
@@ -194,11 +199,29 @@ async fn main() {
     });
 
 
+    // TODO => add a graceful shutdown for the IPC server and the HTTP server
+    // TODO => add a retry mechanism for the IPC server and the HTTP server in case of failure
+    // TODO => add a mechanism to restart the IPC server and the HTTP server in case of failure
+    let http_task = tokio::spawn(async move {
+        
+        let app = Router::new().route("/", get(|| async { "Hello, World!" }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        debug!("HTTP server listening on {}", listener.local_addr().unwrap());
 
+        if let Err(e) = axum::serve(listener,app).await {
+            tracing::error!("HTTP server stopped: {e}");
+        }
+    });
 
-    
-    if let Err(error) = ipc_server::run(&s).await {
-        tracing::error!("IPC server stopped: {error}");
+    let ipc_task = tokio::spawn(async move {
+        if let Err(e) = ipc_server::run(&s).await {
+            tracing::error!("IPC server stopped: {e}");
+        }
+    });
+
+    tokio::select! {
+        _ = http_task => tracing::warn!("HTTP server exited"),
+        _ = ipc_task => tracing::warn!("IPC server exited"),
     }
 
 
