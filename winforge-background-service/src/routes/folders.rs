@@ -1,9 +1,9 @@
 use axum::{
     Json, Router,
-    extract::{Query, State, rejection::QueryRejection},
+    extract::{Path, Query, State, rejection::QueryRejection},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, patch},
 };
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -23,6 +23,16 @@ struct Pagination {
 struct ErrorResponse {
     code: &'static str,
     message: &'static str,
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdatePromptPayload {
+    prompt: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct UpdatePromptResponse {
+    prompt: Option<String>,
 }
 
 #[derive(Debug)]
@@ -47,7 +57,55 @@ impl IntoResponse for ApiError {
 }
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/winforge/folders", get(folders))
+    Router::new()
+        .route("/winforge/folders", get(folders))
+        .route("/winforge/folders/{id}/prompt", patch(update_folder_prompt))
+}
+
+async fn update_folder_prompt(
+    State(state): State<AppState>,
+    Path(folder_id): Path<i64>,
+    Json(payload): Json<UpdatePromptPayload>,
+) -> Result<Json<UpdatePromptResponse>, ApiError> {
+    if folder_id <= 0 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "INVALID_FOLDER_ID",
+            "folder id must be greater than zero",
+        ));
+    }
+
+    let prompt = payload.prompt.and_then(|value| {
+        let trimmed = value.trim().to_string();
+        (!trimmed.is_empty()).then_some(trimmed)
+    });
+
+    let conn = state.pool.get().map_err(|error| {
+        error!(%error, "Failed to get a database connection");
+        ApiError::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "DATABASE_UNAVAILABLE",
+            "The folder service is temporarily unavailable",
+        )
+    })?;
+
+    let updated = conn
+        .execute(
+            "UPDATE folders SET prompt = ?1 WHERE id = ?2",
+            params![prompt, folder_id],
+        )
+        .map_err(internal_database_error)?;
+
+    if updated == 0 {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            "FOLDER_NOT_FOUND",
+            "Folder not found",
+        ));
+    }
+
+    debug!(folder_id, "Folder prompt updated");
+    Ok(Json(UpdatePromptResponse { prompt }))
 }
 
 async fn folders(

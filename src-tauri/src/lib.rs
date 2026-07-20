@@ -4,7 +4,7 @@ mod deserializers;
 mod commands;
 mod jobs;
 
-use std::{fs, sync::Arc};
+use std::{fs, path::PathBuf, process::Command, sync::Arc};
 
 use crate::worker_pool::TX;
 
@@ -82,6 +82,28 @@ fn error_command(app: tauri::AppHandle) {
     app.dialog()
         .message("Hello")
         .blocking_show();
+}
+
+#[tauri::command]
+fn open_folder_in_explorer(path: String) -> Result<(), String> {
+    let folder_path = PathBuf::from(path.trim());
+
+    if !folder_path.is_absolute() {
+        return Err("Folder path must be absolute".to_string());
+    }
+
+    let metadata = fs::metadata(&folder_path)
+        .map_err(|error| format!("Folder is not accessible: {error}"))?;
+
+    if !metadata.is_dir() {
+        return Err("The selected path is not a folder".to_string());
+    }
+
+    Command::new("explorer.exe")
+        .arg(&folder_path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Failed to start Windows Explorer: {error}"))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -171,7 +193,8 @@ pub fn run(pdfium: Arc<pdfium_render::prelude::Pdfium>) {
         .invoke_handler(tauri::generate_handler![
             greet,
             discover_port_winforge_background_service,
-            error_command
+            error_command,
+            open_folder_in_explorer
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,5 +1,6 @@
 import Folders from "./components/folders.component";
 import { useDiscoveryBackgroundService } from "./hooks/useDiscovery";
+import "./App.css";
 
 function App() {
   const {
