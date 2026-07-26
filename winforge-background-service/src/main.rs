@@ -3,6 +3,7 @@ mod models;
 mod routes;
 mod state;
 mod types;
+mod db;
 
 use std::{any::Any, path::Path, sync::mpsc, thread};
 
@@ -10,7 +11,7 @@ use rusqlite::{params, Connection, Result};
 
 use crossbeam_channel::{bounded, unbounded};
 
-use crate::{models::folders::Folder, state::AppState, types::cmd_event::CmdEvent};
+use crate::{db::init::init_db, models::folders::Folder, state::AppState, types::cmd_event::CmdEvent};
 use tracing::{debug, error, field::debug, info};
 
 use r2d2;
@@ -31,28 +32,10 @@ impl CustomizeConnection<Connection, rusqlite::Error> for SqliteInitializer {
             PRAGMA journal_mode=WAL;
             PRAGMA foreign_keys=ON;
             PRAGMA busy_timeout=5000;
+            PRAGMA foreign_keys = ON;
         ")?;
         Ok(())
     }
-}
-
-
-
-fn init_db(conn: &Connection) -> Result<()> {
-
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS folders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                uid TEXT NOT NULL UNIQUE,
-                resource_path TEXT NOT NULL,
-                prompt TEXT,
-                created_at TEXT NOT NULL DEFAULT (STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-            );",
-        [],
-    )?;
-
-    debug!("Database initialized successfully");
-    Ok(())
 }
 
 fn add_watcher(resource_path: &str, watcher: &mut notify::ReadDirectoryChangesWatcher) {
@@ -166,6 +149,7 @@ async fn main() {
     
 
 
+    let watcher_app_state = app_state.clone();
     thread::spawn( move || {
         debug!("Starting filesystem watcher thread - (sleeping and waiting for new events)");
 
@@ -173,8 +157,18 @@ async fn main() {
             match w_ev {
                 Ok(event) => {
 
-                    if event.kind.is_create() {
+                    if event.kind.is_create()  {
                         debug!("Received filesystem event: {:?}", event);
+
+                        let _ = watcher_app_state.pool
+                            .get()
+                            .expect("Failed to get connection from pool")
+                            .execute(
+                                "INSERT INTO jobs (uid, folder_id, status, created_at)
+                                VALUES (?1, ?2, ?3, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+                                params![uuid::Uuid::new_v4().to_string(), 1, "pending"],
+                            )
+                            .expect("Failed to insert job into database");
                     }
 
                 }
