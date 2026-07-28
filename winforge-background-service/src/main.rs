@@ -4,6 +4,8 @@ mod routes;
 mod state;
 mod types;
 mod db;
+mod pipe;
+mod events;
 
 use std::{any::Any, path::Path, sync::mpsc, thread};
 
@@ -11,7 +13,7 @@ use rusqlite::{params, Connection, Result};
 
 use crossbeam_channel::{bounded, unbounded};
 
-use crate::{db::init::init_db, models::folders::Folder, state::AppState, types::cmd_event::CmdEvent};
+use crate::{db::init::init_db, models::folders::Folder, pipe::named_pipe::send_ui_notification, state::AppState, types::cmd_event::CmdEvent};
 use tracing::{debug, error, field::debug, info};
 
 use r2d2;
@@ -169,6 +171,7 @@ async fn main() {
                                 ) {
                                     Ok(_) => {
                                         debug!("Successfully inserted new job into database for event: {:?}", event);
+                                        
                                     },
                                     Err(error) => {
                                         error!("Failed to insert new job into database for event {:?}: {error}", event);
@@ -217,6 +220,14 @@ async fn main() {
                     Ok(_) => {
                         debug!("Successfully executed SQL: {}", "INSERT INTO folders (uid, resource_path, prompt) VALUES (?1, ?2, ?3) ON CONFLICT(uid) DO UPDATE SET prompt=excluded.prompt");
                         add_watcher(&command_event.resource_path, &mut watcher);
+                        match send_ui_notification() {
+                            Ok(_) => {
+                                debug!("Successfully sent UI notification for command_event: {:?}", command_event);
+                            },
+                            Err(error) => {
+                                error!("Failed to send UI notification for command_event {:?}: {error}", command_event);
+                            }
+                        }
                     },
                     Err(error) => {
                         error!("Failed to insert or update command_event in database: {error}");
