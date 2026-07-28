@@ -160,15 +160,25 @@ async fn main() {
                     if event.kind.is_create()  {
                         debug!("Received filesystem event: {:?}", event);
 
-                        let _ = watcher_app_state.pool
-                            .get()
-                            .expect("Failed to get connection from pool")
-                            .execute(
-                                "INSERT INTO jobs (uid, folder_id, status, created_at)
-                                VALUES (?1, ?2, ?3, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))",
-                                params![uuid::Uuid::new_v4().to_string(), 1, "pending"],
-                            )
-                            .expect("Failed to insert job into database");
+                        match watcher_app_state.pool.get() {
+                            Ok(conn) => {
+                                match conn.execute(
+                                    "INSERT INTO jobs (uid, folder_id, status, created_at)
+                                    VALUES (?1, ?2, ?3, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+                                    params![uuid::Uuid::new_v4().to_string(), 1, "pending"],
+                                ) {
+                                    Ok(_) => {
+                                        debug!("Successfully inserted new job into database for event: {:?}", event);
+                                    },
+                                    Err(error) => {
+                                        error!("Failed to insert new job into database for event {:?}: {error}", event);
+                                    }
+                                }
+                            },
+                            Err(error) => {
+                                error!("Failed to get connection from pool: {error}");
+                            }
+                        }
                     }
 
                 }
@@ -206,7 +216,7 @@ async fn main() {
                 params![id_cmd, command_event.resource_path, prompt]) {
                     Ok(_) => {
                         debug!("Successfully executed SQL: {}", "INSERT INTO folders (uid, resource_path, prompt) VALUES (?1, ?2, ?3) ON CONFLICT(uid) DO UPDATE SET prompt=excluded.prompt");
-
+                        add_watcher(&command_event.resource_path, &mut watcher);
                     },
                     Err(error) => {
                         error!("Failed to insert or update command_event in database: {error}");
