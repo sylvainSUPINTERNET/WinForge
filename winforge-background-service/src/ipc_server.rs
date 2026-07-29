@@ -9,17 +9,16 @@ use tokio::{
     };
 use tracing::{error, info, debug};
 
-use crate::types::cmd_event::CmdEvent;
+use crate::{pipe::BACKGROUND_SERVICE_PIPE_NAME, types::cmd_event::CmdEvent};
 
-    const PIPE_NAME: &str = r"\\.\pipe\winforge";
     const MAX_MESSAGE_SIZE: usize = 1024 * 1024;
     const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
     pub async fn run(sender:&Sender<CmdEvent>) -> std::io::Result<()> {
-        info!("IPC server listening on {PIPE_NAME}");
+        info!("IPC server listening on {BACKGROUND_SERVICE_PIPE_NAME}");
 
         loop {
-            let pipe = ServerOptions::new().create(PIPE_NAME)?;
+            let pipe = ServerOptions::new().create(BACKGROUND_SERVICE_PIPE_NAME)?;
 
             if let Err(error) = pipe.connect().await {
                 error!("Connect failed: {error}");
