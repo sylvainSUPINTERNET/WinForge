@@ -26,7 +26,7 @@ use windows::{
 use lopdf::Document;
 
 
-const PIPE_NAME: &str = r"\\.\pipe\winforge";
+const PIPE_NAME: &str = r"\\.\pipe\winforge-ui";
 const PDF_TO_JPG_COMMAND: &str = "pdfToJpg";
 const PDF_MERGE_COMMAND: &str = "pdfMerge";
 

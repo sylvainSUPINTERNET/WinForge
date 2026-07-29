@@ -3,24 +3,24 @@ mod worker_pool;
 mod deserializers;
 mod commands;
 mod jobs;
+mod events;
 
 use std::{fs, path::PathBuf, process::Command, sync::Arc};
 
 use crate::worker_pool::TX;
-
 use crossbeam_channel::{Sender, Receiver};
 use tracing::{debug, info, error};
 use crate::commands::command_manager;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
-
 use windows::{
     core::{w, HSTRING},
     Win32::UI::WindowsAndMessaging::{
         MessageBoxW, MB_ICONERROR, MB_OK,
     },
 };
-//const CHANNEL_CAP: usize = 1000;
 
+
+//const CHANNEL_CAP: usize = 1000;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -106,6 +106,14 @@ fn open_folder_in_explorer(path: String) -> Result<(), String> {
         .map_err(|error| format!("Failed to start Windows Explorer: {error}"))
 }
 
+#[tauri::command]
+fn check_folder_paths(paths: Vec<String>) -> Vec<bool> {
+    paths
+        .into_iter()
+        .map(|path| PathBuf::from(path).is_dir())
+        .collect()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 // pub fn run() {
 //     tracing_subscriber::fmt::init();
@@ -141,20 +149,13 @@ pub fn run(pdfium: Arc<pdfium_render::prelude::Pdfium>) {
                     debug!("Thread {} started", thread_id);
                     loop {// will sleep if no job is available, but will wake up when a job is sent ( condvar replacement thanks to crossbeam_channel ) => litteraly 0 jump
                         match rx.recv() {
-                            Ok(command_payload_ipc) => {
-                                serde_json::from_str(&command_payload_ipc)
-                                    .map(|job_cmd: deserializers::command_message_ipc::CommandPayloadIPC| {
-                                        debug!("Thread {} received job_cmd: {:?}", thread_id, job_cmd);
-
-                                        command_manager::execute(
-                                            thread_id,
-                                            job_cmd,
-                                            &pdfium_clone,
-                                            &app_handle,
-                                        );
-                                    }).unwrap_or_else(|err| {
-                                        debug!("Thread {} failed to deserialize command_payload_ipc: {}, error: {}", thread_id, command_payload_ipc, err);
-                                    });
+                            Ok(event) => {
+                                command_manager::execute(
+                                    thread_id,
+                                    event,
+                                    &pdfium_clone,
+                                    &app_handle,
+                                );
                             }
 
                             Err(_) => {
@@ -194,7 +195,8 @@ pub fn run(pdfium: Arc<pdfium_render::prelude::Pdfium>) {
             greet,
             discover_port_winforge_background_service,
             error_command,
-            open_folder_in_explorer
+            open_folder_in_explorer,
+            check_folder_paths
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

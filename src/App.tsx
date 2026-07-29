@@ -3,11 +3,14 @@ import { useDiscoveryBackgroundService } from "./hooks/useDiscovery";
 import "./App.css";
 
 function App() {
+
   const {
     state,
     loading,
     error
   } = useDiscoveryBackgroundService()
+
+  
 
   return (
     <main className="container">

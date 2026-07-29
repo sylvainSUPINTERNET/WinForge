@@ -11,7 +11,7 @@ mod windows {
 
     use tracing::{error, info};
 
-    const PIPE_NAME: &str = r"\\.\pipe\winforge";
+    const PIPE_NAME: &str = r"\\.\pipe\winforge-ui";
     const MAX_MESSAGE_SIZE: usize = 1024 * 1024;
     const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
     static STARTED: OnceLock<()> = OnceLock::new();

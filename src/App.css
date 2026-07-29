@@ -144,6 +144,15 @@ button:focus-visible, select:focus-visible {
   background: linear-gradient(150deg, rgba(139,124,246,.1), rgba(255,255,255,.027));
 }
 
+.folder-card.is-missing {
+  border-color: rgba(238, 139, 139, .24);
+  background: linear-gradient(150deg, rgba(174, 72, 72, .08), rgba(255,255,255,.022));
+}
+
+.folder-card.is-missing:hover {
+  border-color: rgba(238, 139, 139, .38);
+}
+
 .folder-card-topline, .folder-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 .folder-icon, .empty-folder-icon {
@@ -169,6 +178,9 @@ button:focus-visible, select:focus-visible {
 }
 
 .folder-status i { width: 6px; height: 6px; border-radius: 50%; background: #66c398; box-shadow: 0 0 0 4px rgba(102,195,152,.1); }
+
+.folder-status.is-missing { color: #e59b9b; }
+.folder-status.is-missing i { background: #dd7373; box-shadow: 0 0 0 4px rgba(221,115,115,.1); }
 
 .folder-card-copy { margin: 21px 0 14px; min-width: 0; }
 .folder-card-copy h2 { margin: 0; overflow: hidden; color: #f0f0f5; font-size: 16px; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }

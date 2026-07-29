@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getFolders, updateFolderPrompt } from "../api/folders";
 import { DiscoveryBackgroundServiceState } from "../hooks/useDiscovery";
 
@@ -11,13 +12,17 @@ interface Folder {
   resource_path: string;
   prompt: string | null;
   created_at: string;
+  path_exists: boolean;
 }
+
+type FolderApiResponse = Omit<Folder, "path_exists">;
 
 interface FoldersProps {
   discoveryBackgroundServiceState: DiscoveryBackgroundServiceState;
 }
 
 const PAGE_SIZES = [6, 12, 24];
+const FOLDER_LIST_REFRESH_EVENT = "EVENT_WATCHERS_FOLDER_LIST_REFRESH";
 
 function FolderIcon() {
   return (
@@ -132,13 +137,50 @@ function Folders({ discoveryBackgroundServiceState }: FoldersProps) {
     refetch,
   } = useQuery<Folder[]>({
     queryKey: ["background-service", "folders", currentCursor, pageSize, port],
-    queryFn: () => getFolders({ last_id: currentCursor, per_page: pageSize + 1 }, port as number),
+    queryFn: async () => {
+      const folders = await getFolders(
+        { last_id: currentCursor, per_page: pageSize + 1 },
+        port as number,
+      ) as FolderApiResponse[];
+      const pathStatuses = await invoke<boolean[]>("check_folder_paths", {
+        paths: folders.map((folder) => folder.resource_path),
+      });
+
+      return folders.map((folder, index) => ({
+        ...folder,
+        path_exists: pathStatuses[index] !== false,
+      }));
+    },
     enabled: typeof port === "number",
     placeholderData: (previousData) => previousData,
     staleTime: 0,
     gcTime: 0,
     retry: 1,
   });
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void listen<void>(FOLDER_LIST_REFRESH_EVENT, () => {
+      void refetch();
+    })
+      .then((stopListening) => {
+        if (disposed) {
+          stopListening();
+        } else {
+          unlisten = stopListening;
+        }
+      })
+      .catch((listenError) => {
+        console.error(`Unable to listen for ${FOLDER_LIST_REFRESH_EVENT}`, listenError);
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [refetch]);
 
   const folders = useMemo(() => response.slice(0, pageSize), [response, pageSize]);
   const hasNextPage = response.length > pageSize;
@@ -261,11 +303,19 @@ function Folders({ discoveryBackgroundServiceState }: FoldersProps) {
 
     return (
       <ul className="folders-grid">
-        {folders.map((folder) => (
-          <li className="folder-card" key={folder.id}>
+        {folders.map((folder) => {
+          const isPathMissing = folder.path_exists === false;
+
+          return (
+            <li className={`folder-card${isPathMissing ? " is-missing" : ""}`} key={folder.id}>
             <div className="folder-card-topline">
               <span className="folder-icon"><FolderIcon /></span>
-              <span className="folder-status"><i /> Surveillé</span>
+              <span
+                className={`folder-status${isPathMissing ? " is-missing" : ""}`}
+                title={isPathMissing ? "Ce chemin n’existe plus sur cette machine" : "Le chemin existe sur cette machine"}
+              >
+                <i /> {isPathMissing ? "Chemin introuvable" : "Surveillé"}
+              </span>
             </div>
 
             <div className="folder-card-copy">
@@ -287,9 +337,15 @@ function Folders({ discoveryBackgroundServiceState }: FoldersProps) {
                     className={`path-action-button${openErrorFolderId === folder.id ? " has-error" : ""}`}
                     type="button"
                     onClick={() => openInExplorer(folder)}
-                    disabled={openingFolderId === folder.id}
+                    disabled={openingFolderId === folder.id || isPathMissing}
                     aria-label="Ouvrir dans l’Explorateur Windows"
-                    title={openErrorFolderId === folder.id ? "Impossible d’ouvrir ce dossier" : "Ouvrir dans l’Explorateur"}
+                    title={
+                      isPathMissing
+                        ? "Ce chemin n’existe plus"
+                        : openErrorFolderId === folder.id
+                          ? "Impossible d’ouvrir ce dossier"
+                          : "Ouvrir dans l’Explorateur"
+                    }
                   >
                     <ExplorerIcon />
                     <span>{openErrorFolderId === folder.id ? "Erreur" : "Ouvrir"}</span>
@@ -317,8 +373,9 @@ function Folders({ discoveryBackgroundServiceState }: FoldersProps) {
                 #{folder.uid.slice(0, 8)}
               </span>
             </div>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
     );
   })();
