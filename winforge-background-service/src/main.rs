@@ -6,6 +6,7 @@ mod types;
 mod db;
 mod pipe;
 mod events;
+mod repositories;
 
 use std::{any::Any, path::Path, sync::mpsc, thread};
 
@@ -22,7 +23,7 @@ use r2d2::CustomizeConnection;
 
 use notify::{Event as WatcherEvent, RecursiveMode, Result as WatcherResult, Watcher};
 
-use futures::future::join_all;
+
 
 
 #[derive(Debug)]
@@ -40,13 +41,20 @@ impl CustomizeConnection<Connection, rusqlite::Error> for SqliteInitializer {
     }
 }
 
-fn add_watcher(resource_path: &str, watcher: &mut notify::ReadDirectoryChangesWatcher) {
-        let path = Path::new(resource_path);
-        if let Err(e) = watcher.watch(path, RecursiveMode::Recursive) {
-            error!("Failed to watch path {}: {e}", resource_path);
-        } else {
-            debug!(" + Watching path: {}", resource_path);
-        }
+fn add_watcher(resource_path: &str, watcher: &mut notify::ReadDirectoryChangesWatcher) -> i16 {
+    
+    let path = Path::new(resource_path);
+    if !path.exists() && !path.is_dir() {
+        return 1;
+    }
+
+    if let Err(e) = watcher.watch(path, RecursiveMode::Recursive) {
+        error!("Failed to watch path {}: {e}", resource_path);
+        return 2;
+    } else {
+        debug!(" + Watching path: {}", resource_path);
+        return 0;
+    }
 }
 
 
@@ -136,12 +144,21 @@ async fn main() {
                 };
 
                 debug!("Retrieved {} folders from the database", paths.len());
+                let mut path_to_remove = Vec::new();
                 if !paths.is_empty() {
                     for folder in &paths {
-                        add_watcher(&folder.resource_path, &mut watcher);
+                        let res =add_watcher(&folder.resource_path, &mut watcher);
+                        if res == 1 {
+                            path_to_remove.push(folder.resource_path.clone());
+                        }
                     }
                 } else {
                     debug!("No folders found in the database to watch");
+                }
+
+                if path_to_remove.len() > 0 {
+                    debug!("Removing {} folders from the database that no longer exist on the filesystem", path_to_remove.len());
+                    repositories::folders::remove_folder(&app_state.pool, &path_to_remove);
                 }
         }
         Err(e) => {
