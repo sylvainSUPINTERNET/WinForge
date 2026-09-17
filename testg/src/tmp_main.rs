@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 
-
 trait Job {
     fn execute(&self);
 }
